@@ -35,7 +35,7 @@ int stepperTrackingSpeed = 1;                // variable for storing stepper tra
 int homeSpeed = 100;                         // variable for storing stepper home direction speed
 int initialStepperTrackingSpeed = 1;         // variable for storing stepper tracking speed
 int initialHomeSpeed = 100;                  // variable for storing stepper home direction speed
-uint8_t motorRunning = 0;                    // variable to store if motor should be in running state 0-not running, 1-runnning forward, -1-running backward  
+uint8_t motorRunning = 1;                    // variable to store if motor should be in running state 0-not running, 1-runnning forward, -1-running backward  
 int stepper_speed_address = 0;               // address to store stepper speed into EEPROM   
 int home_speed_address = 2;                  // address to store home direction speed in EEPROM
 
@@ -61,11 +61,15 @@ AccelStepper stepper(1, 8, 9);
 
 // initialize the controller
 void setup() {
+  Serial.begin(9600); // opens serial port, sets data rate to 9600 bps
+  Serial.println("Setup");
     // start communication with OLED screen
     if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+         Serial.println("Failed oled");
         while (1)
         ;  // Don't proceed, loop forever
     }
+     Serial.println("Initializing");
     // setup controller pins
     pinMode(CLK_PIN, INPUT_PULLUP);
     pinMode(DT_PIN, INPUT_PULLUP);
@@ -80,47 +84,53 @@ void setup() {
     debouncerClk.attach(CLK_PIN);         // Attach to the rotary encoder clock pin
     debouncerClk.interval(2);             // Set debounce interval (in milliseconds)
 
-    readSpeedConfigFromEeprom();
+    //readSpeedConfigFromEeprom();
 
     // Change these to suit your stepper if you want
-    stepper.setMaxSpeed(10);//1100
-    stepper.setAcceleration(32000);
-    stepper.setSpeed(1);
+    stepper.setMaxSpeed(1000);//1100
+    stepper.setAcceleration(20);
+    stepper.setSpeed(100);
     
     // clear and initialize the display
     display.clearDisplay();
     display.display();  // this command will display all the data which is in buffer
     display.setTextWrap(false);
+     
+      updateMainScreen();
+       Serial.println("Initialized");
 }
 
 // main microcontroller loop
 void loop() {
   // Update the debouncer
-  debouncerSwitch.update();
-  debouncerClk.update();
-  debouncerMotor.update();
+  // debouncerSwitch.update();
+  // debouncerClk.update();
+  // debouncerMotor.update();
 
-  // Read debounced rotary encoder press button state
-  if (debouncerSwitch.fell()) {
-    encoderPressed();
-  }
+  // // Read debounced rotary encoder press button state
+  // if (debouncerSwitch.fell()) {
+  //   encoderPressed();
+  // }
 
-  // Read debounced rotary encoder rotating clock event
-  if (debouncerClk.fell()) {
-    encoderRotated();
-  }
+  // // Read debounced rotary encoder rotating clock event
+  // if (debouncerClk.fell()) {
+  //   encoderRotated();
+  // }
 
-  if (editMode) {
-    // edit mode
-    if (checkTimeoutExpired(lastUpdateEditModeScreen, 300)) {  // update the screen every 300 miliseconds to show that blinking animation on selected value
-      editModeBlinkDark = !editModeBlinkDark;                  // toggle between visible or hidden selected value
-      lastUpdateEditModeScreen = millis();                     // store last time we toggled the stare for next itteration
-      updateMainScreen();                                      // update screen in edit mode
-    }
-  } else {
-    // normal mode
-    runTheStepper();
-  }
+  // if (editMode) {
+  //   // edit mode
+  //   if (checkTimeoutExpired(lastUpdateEditModeScreen, 300)) {  // update the screen every 300 miliseconds to show that blinking animation on selected value
+  //     editModeBlinkDark = !editModeBlinkDark;                  // toggle between visible or hidden selected value
+  //     lastUpdateEditModeScreen = millis();                     // store last time we toggled the stare for next itteration
+  //     updateMainScreen();                                      // update screen in edit mode
+  //   }
+  // } else {
+  //   // normal mode
+  //   runTheStepper();
+  // }
+  Serial.println("loop");
+  stepper.runSpeed();
+  Serial.println("running");
 }
 
 // run the stepper motor if needed
@@ -156,86 +166,89 @@ void updateMainScreen() {
 
     // show main screen with all valuable information
     display.setCursor(2, 0);
-    char speed[12] = "Track speed:";
-    display.print(speed);
-    display.setCursor(22, 0);
-    display.print(stepperTrackingSpeed);
+    char speed[12] = "Track speed";
+    display.println(speed);
+
+    char trackSpeed[5];
+    sprintf(trackSpeed, "%02d", stepperTrackingSpeed);
+    display.setCursor(80, 0);
+    display.print(trackSpeed);
     
-    display.setCursor(2, 22);
-    char homeSpeed[11] = "Home speed:";
-    display.print(homeSpeed);
-    display.setCursor(22, 22);
-    display.print(homeSpeed);
+    // display.setCursor(2, 22);
+    // char homeSpeed[11] = "Home speed:";
+    // display.print(homeSpeed);
+    // display.setCursor(22, 22);
+    // display.print(homeSpeed);
 
-    display.setCursor(2, 42);
-    char startButton[7] = "Start";
-    display.print(startButton);
+    // display.setCursor(2, 42);
+    // char startButton[7] = "Start";
+    // display.print(startButton);
 
-    display.setCursor(22, 42);
-    char homeButton[7] = "Home";
-    display.print(homeButton);
+    // display.setCursor(22, 42);
+    // char homeButton[7] = "Home";
+    // display.print(homeButton);
 
-    if (trackingSpeedValue!=initialStepperTrackingSpeed || homeSpeedValue!=initialHomeSpeed){
-        display.setCursor(42, 42);
-        char saveButton[7] = "Save";
-        display.print(saveButton);
-    }
+    // if (stepperTrackingSpeed!=initialStepperTrackingSpeed || homeSpeed!=initialHomeSpeed){
+    //     display.setCursor(42, 42);
+    //     char saveButton[7] = "Save";
+    //     display.print(saveButton);
+    // }
 
-    display.setCursor(2, 50);
-    switch (motorRunning) {
-    case 0:  // stopped
-        char stopped[14] = "Motor: Stopped";
-        display.print(stopped);
-        break;
-    case 2:  // tracking
-        char running[14] = "Motor: Running";
-        display.print(running);
-        break;
-    case 3:  // return home
-        char home[21] = "Motor: Returning home";
-        display.print(home);
-        break;
-    }
-    if (editMode){
-        // one of options selected to edit - blink that option
-        if (editModeBlinkDark) {
-            switch (currentPageIndex) {
-                case 1:  // tracking speed
-                display.fillRect(0, 0, 12, 10, SSD1306_BLACK);
-                break;
-                case 2:  // home speed
-                display.fillRect(0, 22, 12, 10, SSD1306_BLACK);
-                break;
-            }
-        }
-    }
-    else {
-        // Possible values:
-        // 1 - tracking speed
-        // 2- home speed
-        // 3 - start
-        // 4 - return home
-        // 5 - save config
-        switch (currentPageIndex) {
-        case 1:  // tracking speed
-            display.drawFastHLine(2, 15, 12, WHITE);
-            break;
-        case 2:  // home speed
-            display.drawFastHLine(22, 15, 12, WHITE);
-            break;
-        case 3:  // start
-            display.drawFastHLine(2, 42, 12, WHITE);
-            break;
-        case 4:  // return home
-            display.drawFastHLine(22, 24, 12, WHITE);
-            break;
-        case 4: // save configuration
-            if (trackingSpeedValue!=initialStepperTrackingSpeed || homeSpeedValue!=initialHomeSpeed){
-                display.drawFastHLine(42, 42, 12, WHITE);
-            }
-            break;
-        }
-    }
+    // display.setCursor(2, 50);
+    // switch (motorRunning) {
+    // case 0:  // stopped
+    //     char stopped[14] = "Motor: Stopped";
+    //     display.print(stopped);
+    //     break;
+    // case 2:  // tracking
+    //     char running[14] = "Motor: Running";
+    //     display.print(running);
+    //     break;
+    // case 3:  // return home
+    //     char home[21] = "Motor: Returning home";
+    //     display.print(home);
+    //     break;
+    // }
+    // if (editMode){
+    //     // one of options selected to edit - blink that option
+    //     if (editModeBlinkDark) {
+    //         switch (currentPageIndex) {
+    //             case 1:  // tracking speed
+    //             display.fillRect(0, 0, 12, 10, SSD1306_BLACK);
+    //             break;
+    //             case 2:  // home speed
+    //             display.fillRect(0, 22, 12, 10, SSD1306_BLACK);
+    //             break;
+    //         }
+    //     }
+    // }
+    // else {
+    //     // Possible values:
+    //     // 1 - tracking speed
+    //     // 2- home speed
+    //     // 3 - start
+    //     // 4 - return home
+    //     // 5 - save config
+    //     switch (currentPageIndex) {
+    //     case 1:  // tracking speed
+    //         display.drawFastHLine(2, 15, 12, WHITE);
+    //         break;
+    //     case 2:  // home speed
+    //         display.drawFastHLine(22, 15, 12, WHITE);
+    //         break;
+    //     case 3:  // start
+    //         display.drawFastHLine(2, 42, 12, WHITE);
+    //         break;
+    //     case 4:  // return home
+    //         display.drawFastHLine(22, 24, 12, WHITE);
+    //         break;
+    //     case 5: // save configuration
+    //         if (stepperTrackingSpeed!=initialStepperTrackingSpeed || homeSpeed!=initialHomeSpeed){
+    //             display.drawFastHLine(42, 42, 12, WHITE);
+    //         }
+    //         break;
+    //     }
+    // }
 
     display.display();
 }
@@ -329,7 +342,7 @@ void saveSpeedConfiguration(){
     writeIntIntoEEPROM(stepper_speed_address,stepperTrackingSpeed);
     writeIntIntoEEPROM(home_speed_address,homeSpeed);
     initialStepperTrackingSpeed = stepperTrackingSpeed;
-    initialHomeSpeed = homeSpeed  
+    initialHomeSpeed = homeSpeed;
 }
 
 void writeIntIntoEEPROM(int address, int number) {
@@ -340,18 +353,23 @@ void writeIntIntoEEPROM(int address, int number) {
 }
 
 void readSpeedConfigFromEeprom(){
+  Serial.println("readSpeedConfigFromEeprom");
     int trackingSpeedValue = (EEPROM.read(stepper_speed_address) << 8) | EEPROM.read(stepper_speed_address+1); // Read tracking speed
     int homeSpeedValue = (EEPROM.read(home_speed_address) << 8) | EEPROM.read(home_speed_address+1); // Read home speed
 
+Serial.println(trackingSpeedValue);
+Serial.println(homeSpeedValue);
     // Check if the values are valid (not undefined)
     if (trackingSpeedValue != 0xFFFF && homeSpeedValue != 0xFFFF) {
         stepperTrackingSpeed = trackingSpeedValue;
-        homeSpeed = homeSpeedValue;              
+        homeSpeed = homeSpeedValue;    
+        Serial.println("eeprom values");          
     } else {
         // Values are undefined (EEPROM was cleared or uninitialized)
         stepperTrackingSpeed = 1;         
         homeSpeed = 100; 
+        Serial.println("default speed");
     }
     initialStepperTrackingSpeed = stepperTrackingSpeed;
-    initialHomeSpeed = homeSpeed  
+    initialHomeSpeed = homeSpeed;  
 }
