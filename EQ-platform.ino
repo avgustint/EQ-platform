@@ -40,7 +40,7 @@ int stepper_speed_address = 0;               // address to store stepper speed i
 int home_speed_address = 2;                  // address to store home direction speed in EEPROM
 
 // setup mode variables
-uint8_t currentPageIndex = 1;
+uint8_t currentPageIndex = 3;
 // Possible values:
 // 1 - tracking speed
 // 2 - home speed
@@ -331,13 +331,13 @@ void encoderRotated() {
 }
 
 void startStopButtonPressed() {
-  stepper.setSpeed(-stepperTrackingSpeed);
+  stepper.setSpeed(stepperTrackingSpeed);
   stepper.setAcceleration(20);
   motorRunning = motorRunning != 0 ? 0 : 1;
 }
 
 void returnHomePressed() {
-  stepper.setSpeed(homeSpeed);
+  stepper.setSpeed(-homeSpeed);
   stepper.setAcceleration(20);
   motorRunning = -1;
 }
