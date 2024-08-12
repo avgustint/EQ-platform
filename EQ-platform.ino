@@ -33,20 +33,24 @@ unsigned long lastUpdateEditModeScreen = 0;  // when we last updated screen in e
 bool editModeBlinkDark = false;              // toggle blinking in edit mode when value selected
 int stepperTrackingSpeed = 1;                // variable for storing stepper tracking speed
 int homeSpeed = 100;                         // variable for storing stepper home direction speed
-int initialStepperTrackingSpeed = 1;         // variable for storing stepper tracking speed
-int initialHomeSpeed = 100;                  // variable for storing stepper home direction speed
+uint stepDelay = 0;                           // variable for storing delay between steps
+int initialStepperTrackingSpeed = 1;         // variable for storing initial stepper tracking speed
+int initialHomeSpeed = 100;                  // variable for storing initial stepper home direction speed
+int initialStepDelay = 0;                    // variable for storing initial between steps delay
 int motorRunning = 0;                        // variable to store if motor should be in running state 0-not running, 1-runnning forward, -1-running backward
 int stepper_speed_address = 0;               // address to store stepper speed into EEPROM
 int home_speed_address = 2;                  // address to store home direction speed in EEPROM
+int step_delay_address = 4;                  // address to store delay between steps in EEPROM
 
 // setup mode variables
 uint8_t currentPageIndex = 3;
 // Possible values:
 // 1 - tracking speed
 // 2 - home speed
-// 3 - start/pause/continue
-// 4 - return home
-// 5 - store config
+// 3 - step delay
+// 4 - start/pause/continue
+// 5 - return home
+// 6 - store config
 
 
 // initialize objects
@@ -62,6 +66,7 @@ AccelStepper stepper(1, 8, 9);
 // display texts
 char trackSpeedText[12] = "Track speed";
 char homeSpeedText[11] = "Home speed";
+char stepDelayText[11] = "Step delay";
 char startButton[7] = "Start";
 char stopButton[7] = "Stop";
 char homeButton[7] = "Home";
@@ -154,6 +159,9 @@ void runTheStepper() {
       updateMainScreen();
     } else {
       stepper.runSpeed();
+      if (stepDelay!=0){
+        delay(stepDelay);
+      }
     }
   }
 }
@@ -188,18 +196,26 @@ void updateMainScreen() {
   display.setCursor(80, 12);
   display.print(homeSpeedValue);
 
+  display.setCursor(2, 24);
+  display.print(stepDelayText);
+
+  char stepDelayValue[5];
+  sprintf(stepDelayValue, "%0d", stepDelay);
+  display.setCursor(80, 24);
+  display.print(stepDelayValue);
+
   display.setCursor(2, 52);
   display.print(motorRunning == 0 ? startButton : stopButton);
 
   display.setCursor(48, 52);
   display.print(homeButton);
 
-  if (stepperTrackingSpeed != initialStepperTrackingSpeed || homeSpeed != initialHomeSpeed) {
+  if (stepperTrackingSpeed != initialStepperTrackingSpeed || homeSpeed != initialHomeSpeed || stepDelay != initialStepDelay) {
     display.setCursor(92, 52);
     display.print(saveButton);
   }
 
-  display.setCursor(2, 30);
+  display.setCursor(2, 40);
   //Serial.println(String(motorRunning));
   // Serial.println("Motor");
   //Serial.println(String(motorRunning));
@@ -220,15 +236,19 @@ void updateMainScreen() {
         case 2:  // home speed
           display.fillRect(79, 12, 20, 10, SSD1306_BLACK);
           break;
+        case 3:  // step delay
+          display.fillRect(79, 24, 20, 10, SSD1306_BLACK);
+          break;
       }
     }
   } else {
     // Possible values:
     // 1 - tracking speed
-    // 2- home speed
-    // 3 - start
-    // 4 - return home
-    // 5 - save config
+    // 2 - home speed
+    // 3 - step delay
+    // 4 - start
+    // 5 - return home
+    // 6 - save config
     //Serial.println(String(currentPageIndex));
     switch (currentPageIndex) {
       case 1:  // tracking speed
@@ -237,14 +257,17 @@ void updateMainScreen() {
       case 2:  // home speed
         display.drawFastHLine(79, 21, 19, WHITE);
         break;
-      case 3:  // start
+      case 3:  // step delay
+        display.drawFastHLine(79, 34, 19, WHITE);
+        break;
+      case 4:  // start
         display.drawFastHLine(2, 60, 30, WHITE);
         break;
-      case 4:  // return home
+      case 5:  // return home
         display.drawFastHLine(47, 60, 25, WHITE);
         break;
-      case 5:  // save configuration
-        if (stepperTrackingSpeed != initialStepperTrackingSpeed || homeSpeed != initialHomeSpeed) {
+      case 6:  // save configuration
+        if (stepperTrackingSpeed != initialStepperTrackingSpeed || homeSpeed != initialHomeSpeed || stepDelay != initialStepDelay) {
           display.drawFastHLine(90, 60, 25, WHITE);
         }
         break;
@@ -270,13 +293,17 @@ void encoderPressed() {
         editMode = true;
         motorRunning = 0;  // stop rotating
         break;
-      case 3:  // start
+      case 3:  // step delay
+        editMode = true;
+        motorRunning = 0;  // stop rotating
+        break;
+      case 4:  // start
         startStopButtonPressed();
         break;
-      case 4:  // return home
+      case 5:  // return home
         returnHomePressed();
         break;
-      case 5:  // save configuration
+      case 6:  // save configuration
         saveSpeedConfiguration();
         currentPageIndex = 0;
         break;
@@ -313,13 +340,21 @@ void encoderRotated() {
           homeSpeed = 1000;
         }
         break;
+      case 3:  // step delay
+        stepDelay = stepDelay + change;
+        if (stepDelay < 0) {
+          stepDelay = 0;
+        } else if (stepDelay > 100) {
+          stepDelay = 100;
+        }
+        break;
     }
   } else {
     // rotate between options
     currentPageIndex = currentPageIndex + change;
-    int maxPage = 4;
-    if (stepperTrackingSpeed != initialStepperTrackingSpeed || homeSpeed != initialHomeSpeed) {
-      maxPage = 5;
+    int maxPage = 5;
+    if (stepperTrackingSpeed != initialStepperTrackingSpeed || homeSpeed != initialHomeSpeed || stepDelay != initialStepDelay) {
+      maxPage = 6;
     }
     if (currentPageIndex < 1) {
       currentPageIndex = maxPage;
@@ -345,8 +380,10 @@ void returnHomePressed() {
 void saveSpeedConfiguration() {
   writeIntIntoEEPROM(stepper_speed_address, stepperTrackingSpeed);
   writeIntIntoEEPROM(home_speed_address, homeSpeed);
+  writeIntIntoEEPROM(step_delay_address, stepDelay);
   initialStepperTrackingSpeed = stepperTrackingSpeed;
   initialHomeSpeed = homeSpeed;
+  initialStepDelay = stepDelay;
 }
 
 void writeIntIntoEEPROM(int address, int number) {
@@ -359,16 +396,30 @@ void writeIntIntoEEPROM(int address, int number) {
 void readSpeedConfigFromEeprom() {
   int trackingSpeedValue = (EEPROM.read(stepper_speed_address) << 8) | EEPROM.read(stepper_speed_address + 1);  // Read tracking speed
   int homeSpeedValue = (EEPROM.read(home_speed_address) << 8) | EEPROM.read(home_speed_address + 1);            // Read home speed
+  int stepDelayValue = (EEPROM.read(step_delay_address) << 8) | EEPROM.read(step_delay_address + 1);            // Read step delay
 
   // Check if the values are valid (not undefined)
-  if (trackingSpeedValue != 0xFFFF && homeSpeedValue != 0xFFFF) {
+  if (trackingSpeedValue != 0xFFFF) {
     stepperTrackingSpeed = trackingSpeedValue;
-    homeSpeed = homeSpeedValue;
   } else {
     // Values are undefined (EEPROM was cleared or uninitialized)
     stepperTrackingSpeed = 1;
+  }
+
+  if (homeSpeedValue != 0xFFFF) {
+    homeSpeed = homeSpeedValue;
+  } else {
+    // Values are undefined (EEPROM was cleared or uninitialized)
     homeSpeed = 100;
+  }
+
+  if (stepDelayValue != 0xFFFF) {
+    stepDelay = stepDelayValue;
+  } else {
+    // Values are undefined (EEPROM was cleared or uninitialized)
+    stepDelay = 0;
   }
   initialStepperTrackingSpeed = stepperTrackingSpeed;
   initialHomeSpeed = homeSpeed;
+  initialStepDelay = stepDelay;
 }
