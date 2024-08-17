@@ -43,7 +43,7 @@ int home_speed_address = 2;                  // address to store home direction 
 int step_delay_address = 4;                  // address to store delay between steps in EEPROM
 
 // setup mode variables
-uint8_t currentPageIndex = 3;
+uint8_t currentPageIndex = 4;
 // Possible values:
 // 1 - tracking speed
 // 2 - home speed
@@ -159,7 +159,8 @@ void runTheStepper() {
       updateMainScreen();
     } else {
       stepper.runSpeed();
-      if (stepDelay!=0){
+      // add delay only for normal operation not for returning home
+      if (stepDelay!=0 && motorRunning > 0 ){
         delay(stepDelay);
       }
     }
@@ -344,8 +345,8 @@ void encoderRotated() {
         stepDelay = stepDelay + change;
         if (stepDelay < 0) {
           stepDelay = 0;
-        } else if (stepDelay > 100) {
-          stepDelay = 100;
+        } else if (stepDelay > 200) {
+          stepDelay = 200;
         }
         break;
     }
